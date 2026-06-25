@@ -1,2 +1,15 @@
 # Vim swap files
 .*.swp
+
+# Python local artifacts
+.venv/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+build/
+dist/
+*.egg-info/
+
+# Ruby artifacts (from upstream history)
+vendor/
+.bundle/

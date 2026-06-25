@@ -1,135 +1,281 @@
-# CeWL - Custom Word List generator
+# PyCeWL - Python Custom Word List Generator
 
-Copyright(c) 2022, Robin Wood <robin@digi.ninja>
+PyCeWL is a Python reimplementation of [CeWL](https://github.com/digininja/CeWL),
+originally designed by Robin Wood (robin@digi.ninja).
 
-Based on a discussion on PaulDotCom (episode 129) about creating custom word lists spidering a targets website and collecting unique words I decided to write CeWL, the Custom Word List generator. CeWL is a ruby app which spiders a given URL to a specified depth, optionally following external links, and returns a list of words which can then be used for password crackers such as John the Ripper.
+It spiders a target website and builds custom word lists from the words it finds.
+The output can be used with password auditing tools such as John the Ripper.
 
-By default, CeWL sticks to just the site you have specified and will go to a depth of 2 links, this behaviour can be changed by passing arguments. Be careful if setting a large depth and allowing it to go offsite, you could end up drifting on to a lot of other domains. All words of three characters and over are output to stdout. This length can be increased and the words can be written to a file rather than screen so the app can be automated.
+By default CeWL stays on the target site, follows links to depth 2, and prints
+unique words of at least three characters to stdout. Options can increase the
+depth, allow offsite links, write to a file, collect email addresses, extract
+document metadata, and emit groups of words.
 
-CeWL also has an associated command line app, FAB (Files Already Bagged) which uses the same meta data extraction techniques to create author/creator lists from already downloaded.
+CeWL also includes FAB, Files Already Bagged, which extracts author, creator,
+and email metadata from files that have already been downloaded.
 
-For anyone running CeWL with Ruby 2.7, you might get some warnings in the style:
-
-```
-.../ruby-2.7.0/gems/mime-types-3.2.2/lib/mime/types/logger.rb:30: warning: `_1' is reserved for numbered parameter; consider another name
-```
-This is due to a new feature introduced in 2.7 which conflices with one line of code in the logger script from the mime-types gem. There is an update for it in the [gem's repo](https://github.com/mime-types/ruby-mime-types/commit/c44673179d24e495e5fb93282a87d37f09925d25#diff-f0a644249326afd54e7a0b90c807f8a6) so hopefully that will be released soon. Till then, as far as I can tell, the warning does not affect CeWL in any way. If, for asthetics, you want to hide the warning, you can run the script as follows:
-
-```
-ruby -W0 ./cewl.rb
-```
+Use this only where you have permission to test. Large depths, offsite crawling,
+and broad URL patterns can generate a lot of traffic.
 
 Homepage: <https://digi.ninja/projects/cewl.php>
 
 GitHub: <https://github.com/digininja/CeWL>
 
-## Pronunciation
+## Quick Start
 
-Seeing as I was asked, CeWL is pronounced "cool".
+Run from a checkout with the `./pycewl` wrapper:
 
-## Installation
-
-CeWL needs the following gems to be installed:
-
-* mime
-* mime-types
-* mini_exiftool
-* nokogiri
-* rubyzip
-* spider
-
-The easiest way to install these gems is with Bundler:
-
-```
-gem install bundler
-bundle install
+```sh
+./pycewl https://example.com
+./pycewl -d 3 -w words.txt https://example.com
+./pycewl fab document.pdf
 ```
 
-Alternatively, you can install them manually with:
+The wrapper uses `uvx --from .[render] pycewl`, so it can run directly from the
+checkout and includes the optional Playwright dependency needed by `--render`.
+If Playwright has not installed browser binaries yet, run:
 
-```
-gem install xxx
-```
-
-The gem `mini_exiftool` gem also requires the exiftool application to be installed.
-
-Assuming you cloned the GitHub repo, the script should by executable by default, but if not, you can make it executable with:
-
-```
-chmod u+x ./cewl.rb
+```sh
+uvx --from "pycewl[render]" playwright install chromium
 ```
 
-The project page on my site gives some tips on solving common problems people
-have encountered while running CeWL - https://digi.ninja/projects/cewl.php
+Published package command names are available through `uvx`:
+
+```sh
+uvx --from pycewl cewl https://example.com
+uvx --from pycewl fab document.pdf
+```
+
+For local development:
+
+```sh
+make setup
+make test
+make build
+```
+
+Equivalent direct commands:
+
+```sh
+uv sync
+uv run pytest
+uv build
+```
+
+## Common Examples
+
+Most runs are one of two shapes: a normal HTTP crawl for server-rendered pages,
+or a rendered crawl for a JavaScript-heavy site. These examples were captured
+against live websites on 2026-06-23, so exact counts may drift as those sites
+change.
+
+For a regular page, the default HTTP crawler is enough. This single-page run
+against IANA's reserved domains page keeps words with at least five characters,
+lowercases them, and prints counts for inspection:
+
+```sh
+./pycewl -d 0 -m 5 --lowercase --count https://www.iana.org/domains/reserved
+```
+
+Captured output excerpt:
+
+```text
+domains, 18
+domain, 7
+registry, 6
+overview, 5
+policy, 5
+reserved, 5
+icann, 4
+names, 4
+special, 4
+technical, 4
+these, 4
+arabic, 3
+available, 3
+example, 3
+number, 3
+```
+
+For a cracker wordlist, write plain words to a file:
+
+```sh
+./pycewl -d 2 -m 5 --lowercase -w words.txt https://www.iana.org/domains/reserved
+```
+
+For a SPA-ish site, add `--render` so the page is loaded in Chromium before
+words are extracted. This run uses Angular's documentation site:
+
+```sh
+./pycewl --render -d 0 -m 5 --lowercase --count https://angular.dev/
+```
+
+Captured output excerpt:
+
+```text
+angular, 24
+google, 6
+learn, 6
+signals, 6
+about, 5
+searchterm, 5
+signal, 5
+community, 4
+forward, 4
+arrow, 3
+computed, 3
+development, 3
+filtereditems, 3
+framework, 3
+github, 3
+search, 3
+where, 3
+```
 
 ## Usage
 
-```
-./cewl.rb
+Show CeWL help:
 
-CeWL 5.5.2 (Grouping) Robin Wood (robin@digi.ninja) (https://digi.ninja/)
-Usage: cewl [OPTIONS] ... <url>
-
-    OPTIONS:
-	-h, --help: Show help.
-	-k, --keep: Keep the downloaded file.
-	-d <x>,--depth <x>: Depth to spider to, default 2.
-	-m, --min_word_length: Minimum word length, default 3.
-	-o, --offsite: Let the spider visit other sites.
-	-w, --write: Write the output to the file.
-	-u, --ua <agent>: User agent to send.
-	-n, --no-words: Don't output the wordlist.
-	-a, --meta: include meta data.
-	--meta_file file: Output file for meta data.
-	-e, --email: Include email addresses.
-	--email_file <file>: Output file for email addresses.
-	--meta-temp-dir <dir>: The temporary directory used by exiftool when parsing files, default /tmp.
-	-c, --count: Show the count for each word found.
-	-v, --verbose: Verbose.
-	--debug: Extra debug information.
-
-	Authentication
-	--auth_type: Digest or basic.
-	--auth_user: Authentication username.
-	--auth_pass: Authentication password.
-
-	Proxy Support
-	--proxy_host: Proxy host.
-	--proxy_port: Proxy port, default 8080.
-	--proxy_username: Username for proxy, if required.
-	--proxy_password: Password for proxy, if required.
-
-	Headers
-	--header, -H: In format name:value - can pass multiple.
-
-    <url>: The site to spider.
+```sh
+./pycewl --help
 ```
 
-### Running CeWL in a Docker container
+Common commands:
 
-To quickly use CeWL on your machine with Docker, you have to build it :
-1. Build the container :
-    ```sh
-    docker build -t cewl .
-    ```
-2. Container usage without interacting with local files :
-    ```sh
-    docker run -it --rm cewl [OPTIONS] ... <url>
-    ```
-3. Container usage with local files as input or output :
-    ```sh
-    # you have to mount the current directory when calling the container 
-    docker run -it --rm -v "${PWD}:/host" cewl [OPTIONS] ... <url>
-    ```
+```sh
+# Crawl a site with default settings.
+./pycewl https://example.com
 
-I am going to stress here, I am not going to be offering any support for this. The work was done by [@loris-intergalactique](https://github.com/loris-intergalactique) who has offered to field any questions on it and give support. I don't use or know Docker, so please, don't ask me for help.
+# Crawl deeper and write words to a file.
+./pycewl -d 3 -w words.txt https://example.com
 
-## Licence
+# Include email addresses and metadata.
+./pycewl -e -a --meta_file metadata.txt https://example.com
 
-This project released under the Creative Commons Attribution-Share Alike 2.0 UK: England & Wales
+# Allow offsite links. Use carefully.
+./pycewl -o https://example.com
+
+# Extract metadata from an already downloaded file.
+./pycewl fab document.pdf
+```
+
+Current CeWL options:
+
+```text
+usage: pycewl [-h] [-k] [-d DEPTH] [-m MIN_WORD_LENGTH]
+              [-x MAX_WORD_LENGTH] [-o] [--exclude EXCLUDE]
+              [--allowed ALLOWED] [-w WRITE] [-u UA] [-n] [-g GROUPS]
+              [--lowercase] [--with-numbers] [--convert-umlauts] [-a]
+              [--meta_file META_FILE] [-e] [--email_file EMAIL_FILE]
+              [--meta-temp-dir META_TEMP_DIR] [-c] [--render]
+              [--auth_type {basic,digest}] [--auth_user AUTH_USER]
+              [--auth_pass AUTH_PASS] [-H HEADER]
+              [--proxy_host PROXY_HOST] [--proxy_port PROXY_PORT]
+              [--proxy_username PROXY_USERNAME]
+              [--proxy_password PROXY_PASSWORD] [-v] [--debug] [--version]
+              url
+
+Custom word list generator
+```
+
+Important flags:
+
+```text
+-k, --keep                  Keep downloaded metadata files.
+-d, --depth                 Depth to spider to, default 2.
+-m, --min_word_length       Minimum word length, default 3.
+-x, --max_word_length       Maximum word length, default unset.
+-o, --offsite               Let the spider visit other sites.
+--exclude                   File containing request paths to exclude.
+--allowed                   Regex pattern that URL path must match.
+-w, --write                 Write words/groups to this file.
+-u, --ua                    User agent to send.
+-n, --no-words              Do not output the wordlist.
+-g, --groups                Return groups of words as well.
+--lowercase                 Lowercase all parsed words.
+--with-numbers              Accept words with numbers.
+--convert-umlauts           Convert common Latin-1 umlauts.
+-a, --meta                  Include metadata.
+--meta_file                 Output file for metadata.
+-e, --email                 Include email addresses.
+--email_file                Output file for email addresses.
+--meta-temp-dir             Temporary directory for metadata files.
+-c, --count                 Show the count for each word found.
+--render                    Render pages with Playwright before extracting.
+-H, --header                Send an HTTP header. Can be passed multiple times.
+```
+
+Authentication:
+
+```text
+--auth_type                 basic or digest.
+--auth_user                 Authentication username.
+--auth_pass                 Authentication password.
+```
+
+Proxy support:
+
+```text
+--proxy_host                Proxy host.
+--proxy_port                Proxy port, default 8080.
+--proxy_username            Username for proxy, if required.
+--proxy_password            Password for proxy, if required.
+```
+
+Render mode uses the same extraction and output pipeline as the normal HTTP
+crawler after the browser has loaded each page. Basic auth, custom headers,
+user-agent, depth, same-site/offsite filtering, excludes, allowed path regexes,
+emails, words, groups, and output formatting are supported. Digest auth and
+some proxy edge cases depend on browser support; use the normal HTTP crawler
+when those transport features are required.
+
+Metadata extraction uses pure Python PDF and Office Open XML parsing, with
+`exiftool` used opportunistically when it is available on `PATH`.
+
+## Make Targets
+
+```sh
+make setup              # uv sync
+make cewl ARGS="..."    # uv run pycewl ...
+make fab ARGS="..."     # uv run fab ...
+make test               # uv run pytest
+make build              # uv build
+make clean              # remove Python caches and build artifacts
+```
+
+## Docker
+
+Docker packaging is pending a Python refresh. The current Dockerfile is left
+unchanged in this pass and should not be treated as the primary way to run the
+Python implementation.
+
+## Troubleshooting
+
+If `--render` cannot start Chromium, install the browser binary:
+
+```sh
+uvx --from "pycewl[render]" playwright install chromium
+```
+
+If metadata extraction misses fields in older Office documents or unusual file
+types, install `exiftool` and make sure it is on `PATH`:
+
+```sh
+exiftool -ver
+```
+
+The project page has additional notes for common runtime problems:
+<https://digi.ninja/projects/cewl.php>
+
+## License
+
+Copyright (c) 2022, Robin Wood <robin@digi.ninja>
+
+This project is released under the Creative Commons Attribution-Share Alike 2.0
+UK: England & Wales license.
 
 <http://creativecommons.org/licenses/by-sa/2.0/uk/>
 
-Alternatively, you can use GPL-3+ instead the of the original license.
+Alternatively, you can use GPL-3.0 or later.
 
 <http://opensource.org/licenses/GPL-3.0>

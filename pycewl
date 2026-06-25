@@ -1,0 +1,1 @@
+#!/usr/bin/env -S uvx --from .[render] pycewl
