@@ -13,6 +13,21 @@ from .render import crawl_rendered
 from .text import sorted_counter, unique_sorted
 
 
+BANNER = r"""
+_____     _____     _ _ _ __
+|  _  |_ _|     |___| | | |  |
+|   __| | |   --| -_| | | |  |__
+|__|  |_  |_____|___|_____|_____|
+      |___|
+"""
+
+
+class _CeWLArgumentParser(argparse.ArgumentParser):
+    def print_help(self, file=None):
+        print(BANNER)
+        super().print_help(file)
+
+
 def _parse_header(values: list[str] | None) -> dict[str, str]:
     headers: dict[str, str] = {}
     for value in values or []:
@@ -24,7 +39,7 @@ def _parse_header(values: list[str] | None) -> dict[str, str]:
 
 
 def build_cewl_parser(prog: str = "cewl") -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog=prog, description="Custom word list generator")
+    parser = _CeWLArgumentParser(prog=prog, description="Custom word list generator")
     parser.add_argument("url")
     parser.add_argument("-k", "--keep", action="store_true", help="Keep downloaded metadata files")
     parser.add_argument("-d", "--depth", type=int, default=2, help="Depth to spider to, default 2")
