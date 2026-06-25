@@ -17,15 +17,9 @@ BANNER = r"""
 _____     _____     _ _ _ __
 |  _  |_ _|     |___| | | |  |
 |   __| | |   --| -_| | | |  |__
-|__|  |_  |_____|___|_____|_____|
+|__|  |_  |_____|___|_____|_____|  Python Cr(e)ative Word List generator.
       |___|
 """
-
-
-class _CeWLArgumentParser(argparse.ArgumentParser):
-    def print_help(self, file=None):
-        print(BANNER)
-        super().print_help(file)
 
 
 def _parse_header(values: list[str] | None) -> dict[str, str]:
@@ -39,7 +33,7 @@ def _parse_header(values: list[str] | None) -> dict[str, str]:
 
 
 def build_cewl_parser(prog: str = "cewl") -> argparse.ArgumentParser:
-    parser = _CeWLArgumentParser(prog=prog, description="Custom word list generator")
+    parser = argparse.ArgumentParser(prog=prog, description=BANNER, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("url")
     parser.add_argument("-k", "--keep", action="store_true", help="Keep downloaded metadata files")
     parser.add_argument("-d", "--depth", type=int, default=2, help="Depth to spider to, default 2")
